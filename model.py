@@ -24,13 +24,13 @@ class Encoder(nn.Module):
         self.pretrained = not os.path.exists('./weights/encoder.dat')
 
         # Cargar la red convolucional
-        self.cnn = models.densenet161(memory_efficient=True, pretrained=self.pretrained)
+        self.cnn = models.densenet121(memory_efficient=True, pretrained=self.pretrained)
 
         # Cambiar el clasificador por una red densa que genere un punto en el espacio lantente
         self.cnn.classifier = nn.Sequential(
             nn.Linear(1024, 1024),
             nn.PReLU(),
-            nn.Dropout(0.5),
+            nn.Dropout(0.3),
             nn.Linear(1024, self.latent_size)
         )
 
@@ -42,7 +42,8 @@ class Encoder(nn.Module):
     def save(self):
         dump = {'latent_size': self.latent_size,
                 'state_dict': self.state_dict()}
-        os.mkdir('./weights')
+        if (not os.path.exists('./weights')):
+            os.mkdir('./weights')
         torch.save(dump, './weights/encoder.dat')
 
 class Decoder(nn.Module):
@@ -54,6 +55,8 @@ class Decoder(nn.Module):
         self.hidden_size = hidden_size
         self.vocab_size = vocab_size
         self.dropout_p = dropout
+        self.n_layers = n_layers
+        self.max_seq_length = max_seq_length
 
         # Dropout
         self.dropout = nn.Dropout(p=dropout)
@@ -102,7 +105,7 @@ class Decoder(nn.Module):
         # TODO: add temperature
 
         sampled_ids = []
-        current_input = features.unzqueeze(1)
+        current_input = features.unsqueeze(1)
 
         # Resetea el estado interno de la red recurrente
         states = self.init_hidden(features.shape[0])    # hidden: (batch_size, 1, hidde_size)
@@ -151,5 +154,6 @@ class Decoder(nn.Module):
                 'vocab_size': self.vocab_size,
                 'n_layers': self.n_layers,
                 'dropout': self.dropout_p}
-        os.mkdir('./weights')
+        if (not os.path.exists('./weights')):
+            os.mkdir('./weights')
         torch.save(dump, './weights/decoder.dat')
