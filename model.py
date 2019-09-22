@@ -53,6 +53,7 @@ class Decoder(nn.Module):
         self.latent_size = latent_size
         self.hidden_size = hidden_size
         self.vocab_size = vocab_size
+        self.dropout_p = dropout
 
         # Dropout
         self.dropout = nn.Dropout(p=dropout)
@@ -142,3 +143,13 @@ class Decoder(nn.Module):
                       weights.new(self.n_layers, batch_size, self.hidden_size).zero_())
 
         return hidden
+
+    def save(self):
+        dump = {'state_dict': self.state_dict(),
+                'latent_size': self.latent_size,
+                'hidden_size': self.hidden_size,
+                'vocab_size': self.vocab_size,
+                'n_layers': self.n_layers,
+                'dropout': self.dropout_p}
+        os.mkdir('./weights')
+        torch.save(dump, './weights/decoder.dat')
