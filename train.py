@@ -67,7 +67,8 @@ def main(args):
         # Lee las imagenes con una frase distinta cada vez
         trainloader = dataloader(args.image_folder, args.captions_file, args.batch_size)
 
-        for images, captions, lengths in trainloader:
+        losses = []
+        for i, images, captions, lengths in enumerate(trainloader):
             # Lee el siguiente batch
             images_v = images.to(device)
             captions_v = captions.to(device)
@@ -82,24 +83,37 @@ def main(args):
             # Pasa los puntos del espacio latente por la red recurrente
             outputs = decoder(latent_v, captions_v, lengths_v)
 
+            # Pasar salida esperada a one-hot
+            expected_v = torch.nn.functional.one_hot(captions_v, decoder.vocab_size)
+
             # Calcula la pérdida para actualizar las redes
-            loss = criterion(outputs, captions_v)
+            loss = criterion(outputs, expected_v)
 
             # Actuaslizar los pesos 
             loss.backward()
             optimizer.step()
 
+            losses.append(loss.item())
+
+            # Informar sobre el estado del entrenamiento
+            if i % 100 and i != 0:
+                # Actualizar tensorboard
+                writer.add_scalar('Training loss', np.mean(losses[-100:]))
+
+                # Imprimir status
+                print('Epoch: {}\tBatch: {}\t\tTraining loss:', e, i, np.mean(losses[-100:]))
     else:
-        print('Epoch {}:', e)
+        print('-------- Epoch: {}\t\tLoss: {} -----------', e, np.mean(losses))
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--lr", type=float, default=0.002, help='Learning rate')
-    parser.add_argument("--epochs", type=int, default=1, help="Number of epochs to train")
-    parser.add_argument("--batch_size", type=int, default=32, help="Batch size")
-    parser.add_argument("--image_folder", type=str, help='Where training images are located')
-    parser.add_argument("--captions_file", type='str', help='JSON containing captions for each image')
+    parser.add_argument("--epochs", type=int, default=1, help="Numero de generaciones a entrenar")
+    parser.add_argument("--batch_size", type=int, default=32, help="Tamaño del batch")
+    parser.add_argument("--image_folder", type=str, help='Carpeta que contiene todas las imagenes')
+    parser.add_argument("--captions_file", type='str', help='Archivo JSON que contiene las frases')
+    parser.add_argument("--dicts", type=str, help='Diccionarios')
 
     args = parser.parse_args()
     main(args)
