@@ -57,7 +57,7 @@ def main(args):
 
     # algoritmo que actualizara los pesos de las redes
     parameters = list(decoder.parameters()) + list(encoder.parameters())
-    optimizer = optim.AdamW(parameters, lr=args.lr)
+    optimizer = optim.SGD(parameters, lr=args.lr)
 
     # Funcion de perdida a usar: Entropia cruzada ya que los elementos a predecir (palabras)
     # son mutuamente exlusivos (solo se puede elegir una palabra)
