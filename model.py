@@ -24,19 +24,20 @@ class Encoder(nn.Module):
         self.pretrained = not os.path.exists('./weights/encoder.dat')
 
         # Cargar la red convolucional
-        self.cnn = models.densenet121(memory_efficient=True, pretrained=self.pretrained)
+        self.cnn = models.resnet50(pretrained=self.pretrained)
 
         # Cambiar el clasificador por una red densa que genere un punto en el espacio lantente
-        self.cnn.classifier = nn.Sequential(
-            nn.Linear(1024, 1024),
+        self.classifier = nn.Sequential(
+            nn.Linear(1000, 1000),
             nn.PReLU(),
             nn.Dropout(0.3),
-            nn.Linear(1024, self.latent_size)
+            nn.Linear(1000, self.latent_size)
         )
 
     def forward(self, x):
         # Pasar batch a traves de la CNN y obtener espacios latentes
         x = self.cnn(x)
+        x = self.classifier(x)
         return x
 
     def save(self):
