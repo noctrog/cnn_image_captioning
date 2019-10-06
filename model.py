@@ -1,10 +1,12 @@
 import os
+import math
 
 import torch
 from torch import nn
 from torch.nn.utils.rnn import pack_padded_sequence
 
 from torchvision import models
+from torchtext import vocab
 
 # Comprueba que haya una GPU compatible con CUDA
 use_cuda = torch.cuda.is_available()
@@ -158,3 +160,70 @@ class Decoder(nn.Module):
         if (not os.path.exists('./weights')):
             os.mkdir('./weights')
         torch.save(dump, './weights/decoder.dat')
+
+
+## ---------------- CNN - CNN ------------------
+# Basado en el paper: CNN+CNN: Convoutional decoders for Image Captioning
+
+# Modulo de vision
+class VisionModule(nn.Module):
+    def __init__(self):
+        super(VisionModule, self).__init__()
+        # Cargar modelo preentrenado VGG, deshacerse del clasificador y del ultimo max pool
+        pretrained = True if not os.path.exists('./weights/vgg.dat') else False
+        self.convnet = models.vgg16(pretrained=pretrained).features[:-1]
+
+        # si se ha encontrado el archivo con los pesos guardados, cargarlo
+        if not pretrained:
+            state_dict = torch.load('./weights/vgg.dat')
+            self.convnet.load_state_dict(state_dict)
+
+    def forward(self, x):
+        # Pasar la imagen por la red convolucional
+        # Entrada: imagen de (batch, 3, 224, 224)
+        # Salida:            (batch, 512, 14, 14), por lo que d = 14 y Dc = 512
+        return self.convnet(x)
+
+    def save(self):
+        state_dict = self.convnet.state_dict()
+        torch.save('./weights/vgg.dat', state_dict)
+
+# Convolucion causal (solo tiene en cuenta palabras anteriores)
+class CausalConv1d(nn.Module):
+    # kernel_size, tamaño del kernel causal, el kernel interno sera simétrico pero con los números
+    # de la izquierda a 0
+    def __init__(self, kernel_size):
+        super(CausalConv1d, self).__init__()
+
+        self.k = kernel_size
+        self.kernel_size = (self.k - 1) * 2
+        self.causal_conv = nn.Conv1d(in_channels=1, out_channels=1,
+                                     kernel_size=self.kernel_size, padding=self.k-1)
+
+    def forward(self, x):
+        # x: (batch, length, embed_size)
+
+        # Poner los valores que esten a la derecha del kernel a 0
+        # TODO: buscar solucion más elegante para hacer una convolucion causal
+        with torch.no_grad():
+            self.causal_conv.weight[:, :, :, self.k:] = 0
+
+
+
+
+# Modelo de lenguaje
+class LanguageModel(nn.Module):
+    def __init__(self):
+        super(LanguageModel, self).__init__()
+
+        ## Parametros
+        # k: tamaño del kernel
+        self.k = 3
+
+        # Embedding (de momento usar GloVe preentrenado)
+        self.embedding = vocab.GloVe(name='6B', dim=300)
+
+        # 
+
+
+
