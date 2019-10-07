@@ -192,22 +192,23 @@ class VisionModule(nn.Module):
 class CausalConv1d(nn.Module):
     # kernel_size, tamaño del kernel causal, el kernel interno sera simétrico pero con los números
     # de la izquierda a 0
-    def __init__(self, kernel_size):
+    def __init__(self, kernel_size, embedding_dim):
         super(CausalConv1d, self).__init__()
 
+        self.embedding_dim = embedding_dim
         self.k = kernel_size
-        self.kernel_size = (self.k - 1) * 2
-        self.causal_conv = nn.Conv1d(in_channels=1, out_channels=1,
-                                     kernel_size=self.kernel_size, padding=self.k-1)
+        self.causal_conv = nn.Conv1d(in_channels=embedding_dim, out_channels=embedding_dim,
+                                     kernel_size=(2 * self.k - 1), padding=self.k-1)
 
     def forward(self, x):
-        # x: (batch, length, embed_size)
+        # x: (batch, embedding_dim, length)
 
         # Poner los valores que esten a la derecha del kernel a 0
         # TODO: buscar solucion más elegante para hacer una convolucion causal
         with torch.no_grad():
-            self.causal_conv.weight[:, :, :, self.k:] = 0
+            self.causal_conv.weight[:, :, self.k:] = 0
 
+        return self.causal_conv(x)
 
 
 
