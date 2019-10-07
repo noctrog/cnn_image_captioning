@@ -210,7 +210,19 @@ class CausalConv1d(nn.Module):
 
         return self.causal_conv(x)
 
+# Capa de convolucion (con Gated Linear Unit de activacion)
+class CausalConvolutionLayer(nn.Module):
+    def __init__(self, kernel_size, embedding_dim):
+        super(CausalConvolutionLayer, self).__init__()
 
+        self.convolution_a = CausalConv1d(kernel_size, embedding_dim)
+        self.convolution_b = CausalConv1d(kernel_size, embedding_dim)
+        self.sigmoid = nn.Sigmoid()
+
+    def forward(self, x):
+        h_a = self.convolution_a(x)
+        h_b = self.convolution_b(x)
+        return h_a * self.sigmoid(h_b)
 
 # Modelo de lenguaje
 class LanguageModel(nn.Module):
