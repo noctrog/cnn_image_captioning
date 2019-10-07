@@ -224,6 +224,28 @@ class CausalConvolutionLayer(nn.Module):
         h_b = self.convolution_b(x)
         return h_a * self.sigmoid(h_b)
 
+# Capa de atencion
+class AttentionModule(nn.Module):
+    def __init__(self, image_vectors, embedding_dim):
+        super(AttentionModule, self).__init__()
+
+        self.De = embedding_dim
+        self.Dc = image_vectors
+        self.U = torch.nn.Parameter(data=torch.Tensor(self.De, self.Dc), requires_grad=True)
+
+        self.softmax = nn.Softmax(dim=1)
+
+    def forward(self, c, v):
+        # c: (batch, embedding_dim, L)
+        # v: (batch, image_features, N)
+        aux = torch.matmul(c.transpose(1, 2), self.U)   # aux: (batch, L, image_features)
+        S = torch.matmul(aux, v)                        # S:   (batch, L, N)
+        w = self.softmax(S)                             # w:   (batch, L, N)
+        aux = torch.matmul(w, v.transpose(1, 2))        # aux: (batch, L, Dc)
+        a = torch.sum(aux, dim=2, keepdim=False)        # a:   (batch, L)
+
+        return a
+
 # Modelo de lenguaje
 class LanguageModel(nn.Module):
     def __init__(self):
