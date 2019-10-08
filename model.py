@@ -220,6 +220,7 @@ class CausalConvolutionLayer(nn.Module):
         self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
+        # x: (batch, embedding_dim, L)
         h_a = self.convolution_a(x)
         h_b = self.convolution_b(x)
         return h_a * self.sigmoid(h_b)
@@ -236,6 +237,7 @@ class AttentionModule(nn.Module):
         self.softmax = nn.Softmax(dim=1)
 
     def forward(self, c, v):
+        v = v.view(v.shape[0], v.shape[1], -1)
         # c: (batch, embedding_dim, L)
         # v: (batch, image_features, N)
         aux = torch.matmul(c.transpose(1, 2), self.U)   # aux: (batch, L, image_features)
