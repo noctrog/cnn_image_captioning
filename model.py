@@ -280,7 +280,7 @@ class PredictionModule(nn.Module):
         self.linear = nn.Linear(self.hidden_layer, self.vocab_size, bias=False)
 
         self.leakyrelu = nn.LeakyReLU(0.1)
-        self.softmax = nn.Softmax(dim=1)
+        self.softmax = nn.Softmax(dim=2)
 
     def forward(self, a, c):
         # a:    (batch, Dc, L)
@@ -310,6 +310,7 @@ class CNN_CNN(nn.Module):
             self.embedding = vocab.GloVe(name='6B', dim=300)
             self.vocab_size = self.embedding.vectors.shape[0]
         else:
+            self.embedding = embedding
             self.vocab_size = embedding.num_embeddings
 
         # Modulo de vision
