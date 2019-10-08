@@ -225,6 +225,25 @@ class CausalConvolutionLayer(nn.Module):
         h_b = self.convolution_b(x)
         return h_a * self.sigmoid(h_b)
 
+# Modulo de lenguaje
+class LanguageModule(nn.Module):
+    # Modulo de lenguaje sin atencion jerarquica
+    def __init__(self, embedding_dim=300, n_layers=6, kernel_size=3):
+        super(LanguageModule, self).__init__()
+
+        self.n_layers = n_layers
+        self.kernel_size = kernel_size
+        self.embedding_dim = embedding_dim
+
+        conv_list = [CausalConvolutionLayer(self.kernel_size, self.embedding_dim)
+                     for i in range(self.n_layers)]
+
+        self.convolutions = nn.Sequential(*conv_list)
+
+    def forward(self, x):
+        # x:    (batch, embedding_size, L)
+        return self.convolutions(x)
+
 # Capa de atencion
 class AttentionModule(nn.Module):
     def __init__(self, image_vectors, embedding_dim):
@@ -277,18 +296,52 @@ class PredictionModule(nn.Module):
 
 
 # Modelo de lenguaje
-class LanguageModel(nn.Module):
-    def __init__(self):
-        super(LanguageModel, self).__init__()
+class CNN_CNN(nn.Module):
+    # Modelo completo de CNN + CNN sin atencion jerarquica
+    def __init__(self, embedding=None, train_cnn=False):
+        super(CNN_CNN, self).__init__()
 
         ## Parametros
         # k: tamaño del kernel
         self.k = 3
 
-        # Embedding (de momento usar GloVe preentrenado)
-        self.embedding = vocab.GloVe(name='6B', dim=300)
+        # Embedding: si no se especifica ninguno, usar GloVe 
+        if embedding == None:
+            self.embedding = vocab.GloVe(name='6B', dim=300)
+            self.vocab_size = self.embedding.vectors.shape[0]
+        else:
+            self.vocab_size = embedding.num_embeddings
 
-        # 
+        # Modulo de vision
+        self.vision_module = VisionModule()
+        # Fijar los pesos de la red convolucional para las imagenes
+        if not train_cnn:
+            for param in self.vision_module.parameters():
+                param.requires_grad = False
+
+        # Modulo de lenguaje
+        self.language_module = LanguageModule()
+
+        # Modulo de atencion
+        self.attention_module = AttentionModule(512, 300)
+
+        # Modulo de prediccion
+        self.prediction_module = PredictionModule(512, 300, self.vocab_size)
+
+    def forward(self, img, caption):
+        # img:  (batch, channels, 224, 224)
+        # caption: (batch, embed_size, L)
+        v = self.vision_module(img)
+        c = self.language_module(caption)
+        a = self.attention_module(c, v)
+        P = self.prediction_module(a, c)
+        return P
+
+    def sample(self, img):
+        pass
+
+    def save(self):
+        pass
 
 
 
