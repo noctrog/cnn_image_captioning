@@ -243,10 +243,20 @@ class AttentionModule(nn.Module):
         aux = torch.matmul(c.transpose(1, 2), self.U)   # aux: (batch, L, image_features)
         S = torch.matmul(aux, v)                        # S:   (batch, L, N)
         w = self.softmax(S)                             # w:   (batch, L, N)
-        aux = torch.matmul(w, v.transpose(1, 2))        # aux: (batch, L, Dc)
-        a = torch.sum(aux, dim=2, keepdim=False)        # a:   (batch, L)
+        a = torch.matmul(w, v.transpose(1, 2))        # aux: (batch, L, Dc)
+        return a.transpose(1, 2)
 
-        return a
+# Modulo de prediccion
+class PredictionModule(nn.Module):
+    def __init__(self, image_vectors, embedding_dim):
+        super(PredictionModule, self).__init__()
+
+        self.Dc = image_vectors
+        self.De = embedding_dim
+
+        # self.convolution_a
+
+        self.leakyrelu = nn.LeakyReLU(0.1)
 
 # Modelo de lenguaje
 class LanguageModel(nn.Module):
