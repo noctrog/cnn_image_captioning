@@ -248,15 +248,33 @@ class AttentionModule(nn.Module):
 
 # Modulo de prediccion
 class PredictionModule(nn.Module):
-    def __init__(self, image_vectors, embedding_dim):
+    def __init__(self, image_vectors, embedding_dim, vocab_size, hidden_layer=1024):
         super(PredictionModule, self).__init__()
 
         self.Dc = image_vectors
         self.De = embedding_dim
+        self.hidden_layer = hidden_layer
+        self.vocab_size = vocab_size
 
-        # self.convolution_a
+        self.convolution_a = nn.Conv1d(image_vectors, self.hidden_layer, 1, bias=True)
+        self.convolution_c = nn.Conv1d(embedding_dim, self.hidden_layer, 1, bias=True)
+        self.linear = nn.Linear(self.hidden_layer, self.vocab_size, bias=False)
 
         self.leakyrelu = nn.LeakyReLU(0.1)
+        self.softmax = nn.Softmax(dim=1)
+
+    def forward(self, a, c):
+        # a:    (batch, Dc, L)
+        # c:    (batch, De, L) 
+        h = self.leakyrelu(self.convolution_a(a) + self.convolution_c(c))   # h:    (batch, hidden_size, L)
+
+        # batch_size = h.shape[0]
+        # L = h.shape[-1]
+        # h = h.reshape(h.shape[0], -1)
+        h = h.transpose(1, 2)       # h:    (batch, L, hidden_size)
+        P = self.linear(h)          # P:    (batch, L, vocab_size)
+        return self.softmax(P)      # P:    (batch, L, vocab_size)
+
 
 # Modelo de lenguaje
 class LanguageModel(nn.Module):
