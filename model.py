@@ -398,11 +398,26 @@ class HierarchicalAttentionLayer(nn.Module):
         a_b = self.Wb(a.transpose(1, 2)).transpose(1, 2)    # a_b:  (batch, embedding_dim, L)
         h_a = self.convolution_a(h) + a_a
         h_b = self.convolution_b(h) + a_b
-        return h_a * self.sigmoid(h_b)
+        return h_a * self.sigmoid(h_b), a
+
+class HierarchicalAttentionModule(nn.Module):
+    def __init__(self, n_layers=6, kernel_size=3, embedding_dim=300, image_features=512):
+        super(HierarchicalAttentionModule, self).__init__()
+
+        self.attention_layers = nn.ModuleList([HierarchicalAttentionLayer(kernel_size=kernel_size,
+                                                                          embedding_dim=embedding_dim,
+                                                                          image_features=image_features)
+                                               for _ in range(n_layers)])
+    def forward(self, h, v):
+        for i in range(len(self.attention_layers) - 1):
+            h, _ = self.attention_layers[i](h, v)
+
+        h, a = self.attention_layers[-1](h, v)
+        return h, a
 
 class CNN_CNN_HA(nn.Module):
     """CNN_CNN con modulo de atencion jerarquico"""
-    def __init__(self, max_length=15, embedding_dim=None, train_cnn=False):
+    def __init__(self, n_layers=6, max_length=15, embedding=None, train_cnn=False):
         super(CNN_CNN_HA, self).__init__()
 
         ## Parametros
@@ -428,12 +443,47 @@ class CNN_CNN_HA(nn.Module):
             for param in self.vision_module.parameters():
                 param.requires_grad = False
 
-        # Modulo de lenguaje
-        self.language_module = LanguageModule()
-
-        # Modulos de atencion
-        self.attention_module = AttentionModule(512, 300)
+        # Modulo de lenguaje-atencion
+        self.language_module_att = HierarchicalAttentionModule()
 
         # Modulo de prediccion
         self.prediction_module = PredictionModule(512, 300, self.vocab_size)
 
+    def forward(self, img, caption):
+        v = self.vision_module(img)
+        c, a = self.language_module_att(caption, v)
+        P = self.prediction_module(a, c)
+        return P
+
+    def sample(self, img):
+        # Crear un caption solo con el start
+        # caption = self.embedding.vectors[self.embedding.stoi['<S>']]
+        caption = self.embedding.vectors[self.embedding.stoi['super']]
+        caption = caption.reshape((1, self.embedding.dim, 1))
+        caption = caption.repeat(img.shape[0], 1, 1)
+
+        sentences = [list() for _ in range(caption.shape[0])]
+
+        # Generar palabras hasta obtener </S> o llegar a la longitud maxima
+        for _ in range(self.max_length):
+            prediction = self.forward(img, caption)                 # prediction:       (batch, L, vocab_size)
+            _, word_ids = torch.max(prediction[:, -1, :], dim=1)    # word_ids:         (batch)
+            word_ids = word_ids.to(torch.int32)
+            new_words = self.embedding.vectors[word_ids.cpu().numpy()]
+            new_words = new_words.view(new_words.shape[0], 1, new_words.shape[1])                 # new_words:        (batch, 1, embedding_size)
+            caption = torch.cat([caption, new_words.transpose(1, 2)], dim=2)
+
+            # append words
+            for i, sentence in enumerate(sentences):
+                sentence.append(self.embedding.itos[word_ids.cpu().numpy()[i]])
+            # if word_id == self.embedding.stoi['</S>']:
+                # break
+
+        # Generar frases
+        for sentence in sentences:
+            sentence = " ".join(sentence)
+
+        return sentences
+
+    def save(self):
+        torch.save(self.state_dict(), './weights/cnn_cnn_ha.dat')
