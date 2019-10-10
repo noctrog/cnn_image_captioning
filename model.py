@@ -375,3 +375,65 @@ class CNN_CNN(nn.Module):
         torch.save(self.state_dict(), './weights/cnn_cnn.dat')
         pass
 
+class HierarchicalAttentionLayer(nn.Module):
+    """Modulo de atencion jerarquico"""
+    def __init__(self, kernel_size=3, embedding_dim=300, image_features=512):
+        super(HierarchicalAttentionLayer, self).__init__()
+
+        self.convolution_a = CausalConv1d(kernel_size, embedding_dim)
+        self.convolution_b = CausalConv1d(kernel_size, embedding_dim)
+        self.sigmoid = nn.Sigmoid()
+
+        # self.convolution_att_a = CausalConv1d(kernel_size, embedding_dim)
+        # self.convolution_att_b = CausalConv1d(kernel_size, embedding_dim)
+        self.Wa = nn.Linear(image_features, embedding_dim)
+        self.Wb = nn.Linear(image_features, embedding_dim)
+
+        self.attention_module = AttentionModule(image_features, embedding_dim)
+
+    def forward(self, h, v):
+        # x: (batch, embedding_dim, L)
+        a = self.attention_module(h, v)                     # a:    (batch, image_features, L)
+        a_a = self.Wa(a.transpose(1, 2)).transpose(1, 2)    # a_a:  (batch, embedding_dim, L)
+        a_b = self.Wb(a.transpose(1, 2)).transpose(1, 2)    # a_b:  (batch, embedding_dim, L)
+        h_a = self.convolution_a(h) + a_a
+        h_b = self.convolution_b(h) + a_b
+        return h_a * self.sigmoid(h_b)
+
+class CNN_CNN_HA(nn.Module):
+    """CNN_CNN con modulo de atencion jerarquico"""
+    def __init__(self, max_length=15, embedding_dim=None, train_cnn=False):
+        super(CNN_CNN_HA, self).__init__()
+
+        ## Parametros
+        # k: tamaño del kernel
+        self.k = 3
+        # Longitud maxima de las frases generadas
+        self.max_length = max_length
+
+        # Embedding: si no se especifica ninguno, usar GloVe 
+        if embedding == None:
+            self.embedding = vocab.GloVe(name='6B', dim=300)
+            if use_cuda:
+                self.embedding.vectors = self.embedding.vectors.cuda()
+            self.vocab_size = self.embedding.vectors.shape[0]
+        else:
+            self.embedding = embedding
+            self.vocab_size = embedding.num_embeddings
+
+        # Modulo de vision
+        self.vision_module = VisionModule()
+        # Fijar los pesos de la red convolucional para las imagenes
+        if not train_cnn:
+            for param in self.vision_module.parameters():
+                param.requires_grad = False
+
+        # Modulo de lenguaje
+        self.language_module = LanguageModule()
+
+        # Modulos de atencion
+        self.attention_module = AttentionModule(512, 300)
+
+        # Modulo de prediccion
+        self.prediction_module = PredictionModule(512, 300, self.vocab_size)
+
