@@ -7,6 +7,8 @@ import torch
 from torch import optim
 from torchvision import datasets, transforms
 
+from random import randrange
+
 import model
 
 from tensorboardX import SummaryWriter
@@ -16,16 +18,41 @@ from tensorboardX import SummaryWriter
 ## -------------- Leer los datos y procesarlos ----------------
 
 # Las imagenes tienen que ir de 0 a 1, con un tamanio de 224x224
-# despues normalizadas con normalize = 
-# transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 
-# 0.224, 0.225]) porque la red convolucional se entreno con 
-# imagenes con este formato
+# despues normalizadas con normalize =
+# transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229,
+# 0.224, 0.225]) porque la red convolucional se entreno con
+# imagenes con este formato# imagenes con este formato# ## imagenes con este formato
+imagenes con este formato
 
 #TODO
 def dataloader(image_folder, captions_file, batch_size):
 
-    yield False
+    #Definir el tensor para guardar las imagenes de un batch
+    tensor_images = torch.tensor((batch_size,3,244,244));
+    #Definir las transformaciones que se aplican a las imagenes
+    transform = transforms.Compose([
+        transforms.Resize(255),
+        transforms.CenterCrop(224),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229,0.224, 0.225]);
+        transforms.ToTensor()]);
+    ])
 
+    #Cargar el dataset
+    cap = dset.CocoCaptiones(root = image_folder,
+                             annFile = captions_file,
+                             transform = transform);
+
+    for batch in range(len(cap)/batch_size):
+        for i in range(batch_size):
+            #Obtener una imagen con sus captions y seleccionar uno al azar
+            img, target = cap[batch*batch_size+i];
+            rand = randrange(4);
+            rand_target = target[rand];
+
+            #Actualizar el tensor de imagenes
+            tensor_images[i] = img;
+
+        yield
 
 ## ------------------------------------------------------------
 ## ------------------------------------------------------------
@@ -89,7 +116,7 @@ def main(args):
             # Calcula la pérdida para actualizar las redes
             loss = criterion(outputs, expected_v)
 
-            # Actuaslizar los pesos 
+            # Actuaslizar los pesos
             loss.backward()
             optimizer.step()
 
