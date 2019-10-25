@@ -86,6 +86,8 @@ def main(args):
             # Pasar salida esperada a one-hot
             expected_v = torch.nn.functional.one_hot(captions_v, decoder.vocab_size)
 
+            # TODO: Correr las salidas esperadas hacia la izquierda ?
+
             # Calcula la pérdida para actualizar las redes
             loss = criterion(outputs, expected_v)
 
