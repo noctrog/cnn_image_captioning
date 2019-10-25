@@ -1,3 +1,4 @@
+import random
 import argparse
 import os.path as path
 
@@ -10,6 +11,9 @@ from torchvision import datasets, transforms
 import model
 
 from tensorboardX import SummaryWriter
+
+# Usar CUDA si esta disponible
+device = torch.device('cuda' if torch.cuda.is_available else 'cpu')
 
 ## ------------------------------------------------------------
 ## ------------------------------------------------------------
@@ -24,31 +28,29 @@ from tensorboardX import SummaryWriter
 def dataloader(image_folder, captions_file, batch_size):
 
     #Definir el tensor para guardar las imagenes de un batch
-    tensor_images = torch.tensor((batch_size,3,244,244));
+    tensor_images = torch.zeros((batch_size, 3, 224, 224)).to(device)
     #Definir las transformaciones que se aplican a las imagenes
     transform = transforms.Compose([
-        transforms.Resize(255),
-        transforms.CenterCrop(224),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229,0.224, 0.225]);
-        transforms.ToTensor()]);
-    ])
+        transforms.RandomResizedCrop(224),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229,0.224, 0.225])])
 
     #Cargar el dataset
-    cap = dset.CocoCaptiones(root = image_folder,
+    cap = datasets.CocoCaptions(root = image_folder,
                              annFile = captions_file,
-                             transform = transform);
+                             transform = transform)
 
-    for batch in range(len(cap)/batch_size):
+    for batch in range(int( len(cap)/batch_size )):
+        captions = []
         for i in range(batch_size):
             #Obtener una imagen con sus captions y seleccionar uno al azar
-            img, target = cap[batch*batch_size+i];
-            rand = randrange(4);
-            rand_target = target[rand];
+            img, target = cap[batch*batch_size+i]
+            captions.append(target[random.randrange(5)])
 
             #Actualizar el tensor de imagenes
-            tensor_images[i] = img;
+            tensor_images[i] = img
 
-        yield
+        yield tensor_images, captions
 
 ## ------------------------------------------------------------
 ## ------------------------------------------------------------
@@ -56,10 +58,12 @@ def dataloader(image_folder, captions_file, batch_size):
 
 def main(args):
 
-    # TODO: Crear generador y preprocesar datos
-
-    # Usar CUDA si esta disponible
-    device = torch.device('cuda' if torch.cuda.is_available else 'cpu')
+    # Crear un generador
+    trainloader = dataloader(args.image_folder, args.captions_file, args.batch_size)
+    img, labels = next(trainloader)
+    print(img)
+    print(labels)
+    return
 
     # Mantiene un tensorboard con datos actualizados del entrenamiento
     writer = SummaryWriter(comment='CNN_CNN')
@@ -84,7 +88,7 @@ def main(args):
             captions_v = captions.to(device)
 
             # TODO: Genera las salidas esperadas en forma de one-hot
-            expected_v =
+            # expected_v =
 
             # Limpia los optimizadores
             optimizer.zero_grad()
@@ -118,7 +122,7 @@ if __name__ == "__main__":
     parser.add_argument("--epochs", type=int, default=1, help="Numero de generaciones a entrenar")
     parser.add_argument("--batch_size", type=int, default=32, help="Tamaño del batch")
     parser.add_argument("--image_folder", type=str, help='Carpeta que contiene todas las imagenes')
-    parser.add_argument("--captions_file", type='str', help='Archivo JSON que contiene las frases')
+    parser.add_argument("--captions_file", type=str, help='Archivo JSON que contiene las frases')
     parser.add_argument("--dicts", type=str, help='Diccionarios')
 
     args = parser.parse_args()
