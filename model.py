@@ -429,9 +429,11 @@ class CNN_CNN_HA(nn.Module):
         # Embedding: si no se especifica ninguno, usar GloVe 
         if embedding == None:
             self.embedding = vocab.GloVe(name='6B', dim=300)
-            if use_cuda:
-                self.embedding.vectors = self.embedding.vectors.cuda()
-            self.vocab_size = self.embedding.vectors.shape[0]
+            # if use_cuda:
+            self.embedding.vectors = self.embedding.vectors.cpu()
+            self.vocab_size = self.embedding.vectors.shape[0] + 1   # Se suma 1 para tener en cuenta tambien el fin de linea
+            self.stoi = self.embedding.stoi
+            self.itos = self.embedding.itos
         else:
             self.embedding = embedding
             self.vocab_size = embedding.num_embeddings
@@ -457,8 +459,14 @@ class CNN_CNN_HA(nn.Module):
 
     def sample(self, img):
         # Crear un caption solo con el start
-        # caption = self.embedding.vectors[self.embedding.stoi['<S>']]
-        caption = self.embedding.vectors[self.embedding.stoi['super']]
+        # En caso de usar GloVe, como no tiene una palabra para indicar el inicio de la frase, se
+        # escoge la palabra con menos frecuencia, que a su vez sera la mas alejada del centro y por
+        # tanto se podra destinguir facilmente con el resto de palabras
+        if isinstance(self.embedding, vocab.GloVe):
+            start_word = 'sandberger'
+        else:
+            start_word = '<s>'
+        caption = self.embedding.vectors[self.embedding.stoi[start_word]]
         caption = caption.reshape((1, self.embedding.dim, 1))
         caption = caption.repeat(img.shape[0], 1, 1)
 
@@ -476,8 +484,6 @@ class CNN_CNN_HA(nn.Module):
             # append words
             for i, sentence in enumerate(sentences):
                 sentence.append(self.embedding.itos[word_ids.cpu().numpy()[i]])
-            # if word_id == self.embedding.stoi['</S>']:
-                # break
 
         # Generar frases
         for sentence in sentences:
@@ -487,3 +493,7 @@ class CNN_CNN_HA(nn.Module):
 
     def save(self):
         torch.save(self.state_dict(), './weights/cnn_cnn_ha.dat')
+
+    def load(self):
+        if os.path.exists('./weights/cnn_cnn_ha.dat'):
+            self.load_state_dict(torch.load('./weights/cnn_cnn_ha.dat'))
