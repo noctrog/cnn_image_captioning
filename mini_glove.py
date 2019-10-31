@@ -10,7 +10,7 @@ class MiniGlove():
             self.dim = self.vectors.shape[1]
 
     def load(self):
-        state = torch.load('./weights/custom_embedding.dat')
+        state = torch.load('./weights/mini_glove.dat')
         self.vectors = state['vectors']
         self.dim = state['dim']
         self.stoi = state['stoi']
@@ -22,7 +22,7 @@ class MiniGlove():
                  'dim': self.dim,
                  'stoi': self.stoi,
                  'itos': self.itos}
-        torch.save(state, './weights/custom_embedding.dat')
+        torch.save(state, './weights/mini_glove.dat')
 
     def _set_vectors(self, new_vectors):
         self.vectors = new_vectors

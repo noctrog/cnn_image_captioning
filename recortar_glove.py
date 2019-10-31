@@ -1,6 +1,7 @@
 import argparse
 import googletrans
 import json
+import torch
 
 from torchtext import vocab
 
@@ -15,22 +16,49 @@ def main(args):
     with open(args.file, "r") as captions_file:
         data = json.load(captions_file)
         for i in range(len(data['annotations'])):
-            words = data['annotations'][i]['caption'].lower().replace('.', ' .') .replace(',', ' ,') .replace('\'', ' \'').split(' ')
+            words = data['annotations'][i]['caption'].lower() \
+                .replace('.', ' . ').replace(',', ' , ').replace('\'', ' \' ') \
+                .replace('(', ' ( ').replace(')', ') ').replace('-', ' - ') \
+                .replace('"', ' " ').replace(':', ' : ').replace(';', ' ; ') \
+                .replace('!', ' ! ').replace('?', ' ? ').split(' ')
             for word in words:
                 word_set.add(word)
 
     word_list = list(word_set)
-    vectors = glove.vectors[[glove.stoi[word] for word in word_list if word in glove.stoi]]
 
-    # TODO: Generar stoi
+    glove_words = [word for word in word_list if word in glove.stoi]
+    glove_ids = [glove.stoi[word] for word in glove_words]
+    vectors = glove.vectors[glove_ids]
+    count = 0
+    for word in word_list:
+        if word not in glove.stoi:
+            count += 1
 
-    # TODO: Generar itos
+    # Generar stoi
+    new_ids = [i for i in range(len(glove_words))]
+    stoi = dict(zip(glove_words, new_ids))
+
+    # Generar itos
+    itos = dict(zip(new_ids, glove_words))
 
     # Generar miniglove y guardarlo
-    miniglove = mini_glove.MiniGlove()
+    miniglove = mini_glove.MiniGlove(vectors, stoi, itos)
 
-    print(len(word_set))
-    print(vectors.shape)
+    # Aniadir palabra equivalente a <unknown> y <start>
+    miniglove.stoi['<unknown>'] = len(miniglove.stoi)
+    miniglove.stoi['<s>'] = len(miniglove.stoi)
+    miniglove.itos[len(miniglove.itos)] = '<unknown>'
+    miniglove.itos[len(miniglove.itos)] = '<s>'
+    # Inserta <unknown>
+    miniglove.vectors = torch.cat([miniglove.vectors, glove.vectors[glove.stoi['sandberger']].view(1, 300)], dim=0)
+    # Inserta <s>
+    miniglove.vectors = torch.cat([miniglove.vectors, torch.ones([1, 300])], dim=0)
+
+    miniglove.save()
+
+    print('Palabras leidas: ' + str(len(word_set)))
+    print('Palabras guardadas: ' + str(vectors.shape))
+    print('Palabras no guardadas: ' + str(count))
 
 
 if __name__ == "__main__":
