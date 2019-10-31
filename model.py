@@ -6,7 +6,8 @@ from torch import nn
 from torch.nn.utils.rnn import pack_padded_sequence
 
 from torchvision import models
-from torchtext import vocab
+# from torchtext import vocab
+from mini_glove import MiniGlove
 
 # Comprueba que haya una GPU compatible con CUDA
 use_cuda = torch.cuda.is_available()
@@ -308,7 +309,8 @@ class CNN_CNN(nn.Module):
 
         # Embedding: si no se especifica ninguno, usar GloVe 
         if embedding == None:
-            self.embedding = vocab.GloVe(name='6B', dim=300)
+            self.embedding = MiniGlove()
+            self.embedding.load()
             if use_cuda:
                 self.embedding.vectors = self.embedding.vectors.cuda()
             self.vocab_size = self.embedding.vectors.shape[0]
@@ -428,9 +430,10 @@ class CNN_CNN_HA(nn.Module):
 
         # Embedding: si no se especifica ninguno, usar GloVe 
         if embedding == None:
-            self.embedding = vocab.GloVe(name='6B', dim=300)
-            # if use_cuda:
-            self.embedding.vectors = self.embedding.vectors.cpu()
+            self.embedding = MiniGlove()
+            self.embedding.load()
+            if use_cuda:
+                self.embedding.vectors = self.embedding.vectors.cuda()
             self.vocab_size = self.embedding.vectors.shape[0] + 1   # Se suma 1 para tener en cuenta tambien el fin de linea
             self.stoi = self.embedding.stoi
             self.itos = self.embedding.itos
@@ -462,10 +465,7 @@ class CNN_CNN_HA(nn.Module):
         # En caso de usar GloVe, como no tiene una palabra para indicar el inicio de la frase, se
         # escoge la palabra con menos frecuencia, que a su vez sera la mas alejada del centro y por
         # tanto se podra destinguir facilmente con el resto de palabras
-        if isinstance(self.embedding, vocab.GloVe):
-            start_word = 'sandberger'
-        else:
-            start_word = '<s>'
+        start_word = '<s>'
         caption = self.embedding.vectors[self.embedding.stoi[start_word]]
         caption = caption.reshape((1, self.embedding.dim, 1))
         caption = caption.repeat(img.shape[0], 1, 1)
@@ -497,3 +497,4 @@ class CNN_CNN_HA(nn.Module):
     def load(self):
         if os.path.exists('./weights/cnn_cnn_ha.dat'):
             self.load_state_dict(torch.load('./weights/cnn_cnn_ha.dat'))
+            print('Modelo cargado correctamente')

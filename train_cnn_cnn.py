@@ -88,10 +88,6 @@ def main(args):
     # son mutuamente exlusivos (solo se puede elegir una palabra)
     criterion = torch.nn.CrossEntropyLoss()
 
-    # Primera palabra de todas las frases, guardada aqui para no tener que recargarla
-    first_word = cnn_cnn.embedding.vectors[-1]
-
-    input()
     for e in range(args.epochs):
         # Crear un generador
         trainloader = dataloader(args.image_folder, args.captions_file, args.batch_size)
@@ -104,7 +100,7 @@ def main(args):
 
             # Crear embeddings para entrenar. Entradas al modelo
             train_labels = [label for label in captions]
-            train_indices = [[cnn_cnn.stoi[word] if (word in cnn_cnn.stoi) else 399999 for word in label] for label in train_labels]
+            train_indices = [[cnn_cnn.stoi[word] if (word in cnn_cnn.stoi) else cnn_cnn.stoi['<unknown>'] for word in label] for label in train_labels]
             max_length = max([len(label) for label in train_indices])
             # Inicializa el tensor de embeddings
             train_embeddings = torch.zeros(args.batch_size, max_length+1, cnn_cnn.embedding.dim)
@@ -124,10 +120,12 @@ def main(args):
                 valid_training_indices = valid_training_indices + [j for j in range(i*(max_length+1), i*(max_length+1) + len(label)+1)]
 
             # Genera el vector de salidas esperadas por el entrenamiento
-            expected_ids = [[cnn_cnn.stoi[word] if word in cnn_cnn.stoi else 399999 for word in label] for label in captions]
+            expected_ids = [[cnn_cnn.stoi[word] if word in cnn_cnn.stoi else cnn_cnn.stoi['<unknown>'] for word in label] for label in captions]
             # Anadir como palabra final el fin de clase
             for i in range(len(expected_ids)):
-                expected_ids[i].append(400000)
+                expected_ids[i].append(cnn_cnn.stoi['<s>'])     # Como <s> se usa para empezar la
+                # frase y nunca en la prediccion, se puede usar su posicion para predecir el final de
+                # la frase
             # Desenrolla las salidas y las guarda en un tensor
             flat_expected_ids = [i for ids in expected_ids for i in ids]
             expected_v = torch.LongTensor(flat_expected_ids).to(device)
@@ -156,13 +154,9 @@ def main(args):
             # Desenrolla las frases generadas para poder pasarlas por la funcion de perdida
             outputs_v = outputs_v.view(-1, cnn_cnn.vocab_size)
 
-            print(outputs_v[valid_training_indices].shape)
-            print(expected_v.shape)
-
             # Calcula la pérdida para actualizar las redes
             loss = criterion(outputs_v[valid_training_indices], expected_v)
 
-            input()
             # Actualizar los pesos
             loss.backward()
             optimizer.step()
@@ -175,6 +169,7 @@ def main(args):
                 # Actualizar tensorboard
                 mean_losses.append(np.mean(losses[-100:]))
                 writer.add_scalar('Training loss', mean_losses[-1])
+                writer.add_text('Predicted text', 'hola')
 
                 # Validar una foto
                 # img, _ = val_imgs[random.randrange(len(val_imgs)-1)]
@@ -184,14 +179,15 @@ def main(args):
                 # print(sentences[0])
 
                 # Imprimir status
-                print('Epoch: {}\tBatch: {}\t\tTraining loss:', e, i, np.mean(losses[-100:]))
+                print('Epoch: {}\tBatch: {}\t\tTraining loss: {}'.format(e, batch, np.mean(losses[-100:])))
 
                 # Si la perdida esta por debajo del resto de perdidas, guardar modelo
                 if mean_losses[-1] == min(mean_losses):
+                    print("Modelo guardado!")
                     cnn_cnn.save()
 
     else:
-        print('-------- Epoch: {}\t\tLoss: {} -----------', e, np.mean(losses))
+        print('-------- Epoch: {}\t\tLoss: {} -----------'.format(e, np.mean(losses)))
 
 
 if __name__ == "__main__":
