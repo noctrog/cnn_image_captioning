@@ -4,6 +4,7 @@ import math
 import torch
 from torch import nn
 from torch.nn.utils.rnn import pack_padded_sequence
+import torch.nn.functional as F
 
 from torchvision import models
 # from torchtext import vocab
@@ -188,35 +189,61 @@ class VisionModule(nn.Module):
         state_dict = self.convnet.state_dict()
         torch.save('./weights/vgg.dat', state_dict)
 
+class CausalConv1d(torch.nn.Conv1d):
+    def __init__(self,
+                 in_channels,
+                 out_channels,
+                 kernel_size,
+                 stride=1,
+                 dilation=1,
+                 groups=1,
+                 bias=True):
+
+        super(CausalConv1d, self).__init__(
+            in_channels,
+            out_channels,
+            kernel_size=kernel_size,
+            stride=stride,
+            padding=0,
+            dilation=dilation,
+            groups=groups,
+            bias=bias)
+
+        self.__padding = (kernel_size - 1) * dilation
+
+    def forward(self, input):
+        return super(CausalConv1d, self).forward(F.pad(input, (self.__padding, 0)))
+
 # Convolucion causal (solo tiene en cuenta palabras anteriores)
-class CausalConv1d(nn.Module):
-    # kernel_size, tamaño del kernel causal, el kernel interno sera simétrico pero con los números
-    # de la izquierda a 0
-    def __init__(self, kernel_size, embedding_dim):
-        super(CausalConv1d, self).__init__()
+# class CausalConv1d(nn.Module):
+    # # kernel_size, tamaño del kernel causal, el kernel interno sera simétrico pero con los números
+    # # de la izquierda a 0
+    # def __init__(self, kernel_size, embedding_dim):
+        # super(CausalConv1d, self).__init__()
 
-        self.embedding_dim = embedding_dim
-        self.k = kernel_size
-        self.causal_conv = nn.Conv1d(in_channels=embedding_dim, out_channels=embedding_dim,
-                                     kernel_size=(2 * self.k - 1), padding=self.k-1)
+        # self.embedding_dim = embedding_dim
+        # self.k = kernel_size
+        # self.causal_conv = nn.Conv1d(in_channels=embedding_dim, out_channels=embedding_dim,
+                                     # kernel_size=(2 * self.k - 1), padding=self.k-1)
 
-    def forward(self, x):
-        # x: (batch, embedding_dim, length)
+    # def forward(self, x):
+        # # x: (batch, embedding_dim, length)
 
-        # Poner los valores que esten a la derecha del kernel a 0
-        # TODO: buscar solucion más elegante para hacer una convolucion causal
-        with torch.no_grad():
-            self.causal_conv.weight[:, :, self.k:] = 0
+        # # Poner los valores que esten a la derecha del kernel a 0
+        # # TODO: buscar solucion más elegante para hacer una convolucion causal
+        # with torch.no_grad():
+            # self.causal_conv.weight[:, :, self.k:] = 0
+            # self.causal_conv.bias[self.k:] = 0
 
-        return self.causal_conv(x)
+        # return self.causal_conv(x)
 
 # Capa de convolucion (con Gated Linear Unit de activacion)
 class CausalConvolutionLayer(nn.Module):
     def __init__(self, kernel_size, embedding_dim):
         super(CausalConvolutionLayer, self).__init__()
 
-        self.convolution_a = CausalConv1d(kernel_size, embedding_dim)
-        self.convolution_b = CausalConv1d(kernel_size, embedding_dim)
+        self.convolution_a = CausalConv1d(embedding_dim, embedding_dim, kernel_size)
+        self.convolution_b = CausalConv1d(embedding_dim, embedding_dim, kernel_size)
         self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
@@ -280,7 +307,7 @@ class PredictionModule(nn.Module):
         self.linear = nn.Linear(self.hidden_layer, self.vocab_size, bias=False)
 
         self.leakyrelu = nn.LeakyReLU(0.1)
-        self.softmax = nn.Softmax(dim=2)
+        self.log_softmax = nn.LogSoftmax(dim=2)
 
     def forward(self, a, c):
         # a:    (batch, Dc, L)
@@ -292,7 +319,7 @@ class PredictionModule(nn.Module):
         # h = h.reshape(h.shape[0], -1)
         h = h.transpose(1, 2)       # h:    (batch, L, hidden_size)
         P = self.linear(h)          # P:    (batch, L, vocab_size)
-        return self.softmax(P)      # P:    (batch, L, vocab_size)
+        return self.log_softmax(P)      # P:    (batch, L, vocab_size)
 
 
 # Modelo de lenguaje
@@ -382,12 +409,10 @@ class HierarchicalAttentionLayer(nn.Module):
     def __init__(self, kernel_size=3, embedding_dim=300, image_features=512):
         super(HierarchicalAttentionLayer, self).__init__()
 
-        self.convolution_a = CausalConv1d(kernel_size, embedding_dim)
-        self.convolution_b = CausalConv1d(kernel_size, embedding_dim)
+        self.convolution_a = CausalConv1d(embedding_dim, embedding_dim, kernel_size)
+        self.convolution_b = CausalConv1d(embedding_dim, embedding_dim, kernel_size)
         self.sigmoid = nn.Sigmoid()
 
-        # self.convolution_att_a = CausalConv1d(kernel_size, embedding_dim)
-        # self.convolution_att_b = CausalConv1d(kernel_size, embedding_dim)
         self.Wa = nn.Linear(image_features, embedding_dim)
         self.Wb = nn.Linear(image_features, embedding_dim)
 
@@ -434,7 +459,7 @@ class CNN_CNN_HA(nn.Module):
             self.embedding.load()
             if use_cuda:
                 self.embedding.vectors = self.embedding.vectors.cuda()
-            self.vocab_size = self.embedding.vectors.shape[0] + 1   # Se suma 1 para tener en cuenta tambien el fin de linea
+            self.vocab_size = self.embedding.vectors.shape[0]
             self.stoi = self.embedding.stoi
             self.itos = self.embedding.itos
         else:
@@ -474,7 +499,8 @@ class CNN_CNN_HA(nn.Module):
 
         # Generar palabras hasta obtener </S> o llegar a la longitud maxima
         for _ in range(self.max_length):
-            prediction = self.forward(img, caption)                 # prediction:       (batch, L, vocab_size)
+            log_prediction = self.forward(img, caption)                 # prediction:       (batch, L, vocab_size)
+            prediction = torch.exp(log_prediction)
             _, word_ids = torch.max(prediction[:, -1, :], dim=1)    # word_ids:         (batch)
             word_ids = word_ids.to(torch.int32)
             new_words = self.embedding.vectors[word_ids.cpu().numpy()]
