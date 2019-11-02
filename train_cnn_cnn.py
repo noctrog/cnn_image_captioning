@@ -80,12 +80,15 @@ def main(args):
     # Crea los modelos a entrenar
     cnn_cnn = model.CNN_CNN_HA().to(device)
 
+    # Si existe una red preentrenada, cargarla
+    cnn_cnn.load()
+
     # algoritmo que actualizara los pesos de las redes
-    optimizer = optim.Adam(cnn_cnn.parameters(), lr=args.lr)
+    optimizer = optim.AdamW(cnn_cnn.parameters(), lr=args.lr, weight_decay=1e-5)
 
     # Funcion de perdida a usar: Entropia cruzada ya que los elementos a predecir (palabras)
     # son mutuamente exlusivos (solo se puede elegir una palabra)
-    criterion = torch.nn.NLLoss()
+    criterion = torch.nn.NLLLoss()
 
     losses = []
     mean_losses = []
@@ -135,13 +138,14 @@ def main(args):
             # Calcula las predicciones
             outputs_v = cnn_cnn(images_v, captions_v)
 
-            print(train_labels)
-            print(expected_ids)
-            print(expected_v)
+            # print(train_labels)
+            # print(expected_ids)
+            # print(expected_v)
             # _, max_ids = torch.max(outputs_v, dim=2)
             # max_ids, _ = torch.max(max_ids, dim=1)
-            print(captions_v)
-            input()
+            # print(captions_v)
+            # input()
+
             # Desenrolla las frases generadas para poder pasarlas por la funcion de perdida
             outputs_v = outputs_v.view(-1, cnn_cnn.vocab_size)
 
