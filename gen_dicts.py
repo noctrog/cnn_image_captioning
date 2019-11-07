@@ -31,6 +31,12 @@ def main(args):
     # Generar itos
     itos = dict(zip(ids, word_list))
 
+    # Generar principio y fin de frases
+    stoi['<s>'] = len(stoi)
+    stoi['</s>'] = len(stoi)
+    itos[len(itos)] = '<s>'
+    itos[len(itos)] = '</s>'
+
     # Guardar diccionarios
     dicts = {'stoi': stoi,
              'itos': itos}

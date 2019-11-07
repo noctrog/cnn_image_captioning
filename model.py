@@ -1,5 +1,5 @@
-import os
 import math
+import os
 
 import torch
 from torch import nn
@@ -31,16 +31,14 @@ class Encoder(nn.Module):
         self.cnn = models.resnet50(pretrained=self.pretrained)
 
         # Cambiar el clasificador por una red densa que genere un punto en el espacio lantente
-        self.classifier = nn.Sequential(
-            nn.Linear(1000, 1000),
-            nn.PReLU(),
-            nn.Dropout(0.3),
-            nn.Linear(1000, self.latent_size)
+        self.to_latent = nn.Sequential(
+            nn.Linear(self.cnn.fc.in_features, self.latent_size),
+            nn.BatchNorm1d(self.latent_size, momentum=0.01)
         )
 
     def forward(self, x):
         # Pasar batch a traves de la CNN y obtener espacios latentes
-        x = self.cnn(x)
+        x = self.cnn[:-1](x)
         x = self.classifier(x)
         return x
 
@@ -75,6 +73,9 @@ class Decoder(nn.Module):
 
         # Capa FC para mapear salidas del LSTM
         self.linear = nn.Linear(hidden_size, vocab_size)
+
+        # LogSoftmax para seleccionar la palabra
+        self.log_softmax = nn.LogSoftmax(dim=1)
 
     def forward(self, features, captions, lengths):
         """Decodifica del espacio latente y genera los captions"""
@@ -172,22 +173,18 @@ class VisionModule(nn.Module):
     def __init__(self, pretrained=False):
         super(VisionModule, self).__init__()
 
-        if not pretrained and os.path.exists('./weights/vgg.dat'):
-            state_dict = torch.load('./weights/vgg.dat')
-            self.convnet = models.vgg16(pretrained=pretrained).features[:-1].load_state_dict(state_dict)
-        else:
-            print('Usando el modelo vgg preentrenado')
-            self.convnet = models.vgg16(pretrained=True).features[:-1]
+        # if not pretrained and os.path.exists('./weights/vgg.dat'):
+            # state_dict = torch.load('./weights/vgg.dat')
+            # self.convnet = models.vgg16(pretrained=pretrained).features[:-1].load_state_dict(state_dict)
+        # else:
+        print('Usando el modulo VGG preentrenado')
+        self.convnet = models.vgg16(pretrained=True).features[:-1]
 
     def forward(self, x):
         # Pasar la imagen por la red convolucional
         # Entrada: imagen de (batch, 3, 224, 224)
         # Salida:            (batch, 512, 14, 14), por lo que d = 14 y Dc = 512
         return self.convnet(x)
-
-    def save(self):
-        state_dict = self.convnet.state_dict()
-        torch.save('./weights/vgg.dat', state_dict)
 
 class CausalConv1d(torch.nn.Conv1d):
     def __init__(self,
@@ -218,12 +215,11 @@ class CausalConv1d(torch.nn.Conv1d):
 # class CausalConv1d(nn.Module):
     # # kernel_size, tamaño del kernel causal, el kernel interno sera simétrico pero con los números
     # # de la izquierda a 0
-    # def __init__(self, kernel_size, embedding_dim):
+    # def __init__(self, in_channels, out_channels, kernel_size):
         # super(CausalConv1d, self).__init__()
 
-        # self.embedding_dim = embedding_dim
         # self.k = kernel_size
-        # self.causal_conv = nn.Conv1d(in_channels=embedding_dim, out_channels=embedding_dim,
+        # self.causal_conv = nn.Conv1d(in_channels=in_channels, out_channels=out_channels,
                                      # kernel_size=(2 * self.k - 1), padding=self.k-1)
 
     # def forward(self, x):
@@ -280,7 +276,8 @@ class AttentionModule(nn.Module):
         self.Dc = image_vectors
         self.U = torch.nn.Parameter(data=torch.Tensor(self.De, self.Dc), requires_grad=True)
 
-        self.softmax = nn.Softmax(dim=1)
+        # TODO: 1 o 2??
+        self.softmax = nn.Softmax(dim=2)
 
     def forward(self, c, v):
         v = v.view(v.shape[0], v.shape[1], -1)
@@ -442,10 +439,10 @@ class HierarchicalAttentionModule(nn.Module):
         h, a = self.attention_layers[-1](h, v)
         return h, a
 
-class CNN_CNN_HA(nn.Module):
-    """CNN_CNN con modulo de atencion jerarquico"""
-    def __init__(self, n_layers=6, max_length=15, embedding=None, train_cnn=False):
-        super(CNN_CNN_HA, self).__init__()
+class CNN_CNN_HA_GLOVE(nn.Module):
+    """CNN_CNN con modulo de atencion jerarquicoy embedding recortado de GloVe"""
+    def __init__(self, n_layers=6, max_length=15, train_cnn=False):
+        super(CNN_CNN_HA_GLOVE, self).__init__()
 
         ## Parametros
         # k: tamaño del kernel
@@ -453,18 +450,14 @@ class CNN_CNN_HA(nn.Module):
         # Longitud maxima de las frases generadas
         self.max_length = max_length
 
-        # Embedding: si no se especifica ninguno, usar GloVe 
-        if embedding == None:
-            self.embedding = MiniGlove()
-            self.embedding.load()
-            if use_cuda:
-                self.embedding.vectors = self.embedding.vectors.cuda()
-            self.vocab_size = self.embedding.vectors.shape[0]
-            self.stoi = self.embedding.stoi
-            self.itos = self.embedding.itos
-        else:
-            self.embedding = embedding
-            self.vocab_size = embedding.num_embeddings
+        # Usa MiniGlove como embedding
+        self.embedding = MiniGlove()
+        self.embedding.load()
+        if use_cuda:
+            self.embedding.vectors = self.embedding.vectors.cuda()
+        self.vocab_size = self.embedding.vectors.shape[0]
+        self.stoi = self.embedding.stoi
+        self.itos = self.embedding.itos
 
         # Modulo de vision
         self.vision_module = VisionModule()
@@ -518,9 +511,179 @@ class CNN_CNN_HA(nn.Module):
         return sentences
 
     def save(self):
-        torch.save(self.state_dict(), './weights/cnn_cnn_ha.dat')
+        torch.save(self.state_dict(), './weights/cnn_cnn_ha_glove.dat')
 
     def load(self):
-        if os.path.exists('./weights/cnn_cnn_ha.dat'):
-            self.load_state_dict(torch.load('./weights/cnn_cnn_ha.dat'))
+        if os.path.exists('./weights/cnn_cnn_ha_glove.dat'):
+            self.load_state_dict(torch.load('./weights/cnn_cnn_ha_glove.dat'))
+            print('Modelo cargado correctamente')
+
+class CNN_CNN_CE(nn.Module):
+    """CNN_CNN con embedding propio"""
+    def __init__(self, vocab_size, embed_size, n_layers=6, max_length=15, train_cnn=False):
+        super(CNN_CNN_CE, self).__init__()
+
+        self.vocab_size = vocab_size
+        self.embed_size = embed_size
+
+        ## Parametros
+        # k: tamaño del kernel
+        self.k = 3
+        # Longitud maxima de las frases generadas
+        self.max_length = max_length
+
+        # Custom embedding
+        self.embedding = nn.Embedding(vocab_size, embed_size, padding_idx=-1)
+
+        # Modulo de vision
+        self.vision_module = VisionModule()
+        # Fijar los pesos de la red convolucional para las imagenes
+        if not train_cnn:
+            for param in self.vision_module.parameters():
+                param.requires_grad = False
+
+        # Modulo de lenguaje
+        self.language_module = LanguageModule()
+
+        # Modulo de atencion
+        self.attention_module = AttentionModule(512, 300)
+
+        # Modulo de prediccion
+        self.prediction_module = PredictionModule(512, 300, self.vocab_size)
+
+    def forward(self, img, caption):
+        # caption: (batch, L)
+        caption = self.embedding(caption).transpose(1, 2)   # caption: (batch, embed_size, L)
+        v = self.vision_module(img)
+        c = self.language_module(caption)
+        a = self.attention_module(c, v)
+        P = self.prediction_module(a, c)
+        return P
+
+    def sample(self, img, stoi, itos):
+        # Crear un caption solo con el start
+        # En caso de usar GloVe, como no tiene una palabra para indicar el inicio de la frase, se
+        # escoge la palabra con menos frecuencia, que a su vez sera la mas alejada del centro y por
+        # tanto se podra destinguir facilmente con el resto de palabras
+        start_word = '<s>'
+        caption = torch.tensor([stoi[start_word]]).to('cuda' if use_cuda else 'cpu')
+        caption = caption.reshape((1, 1))
+        caption = caption.repeat(img.shape[0], 1)
+
+        sentences = [list() for _ in range(caption.shape[0])]
+
+        # Generar palabras hasta obtener </S> o llegar a la longitud maxima
+        for _ in range(self.max_length):
+            log_prediction = self.forward(img, caption)                 # prediction:       (batch, L)
+            prediction = torch.exp(log_prediction)
+            _, word_ids = torch.max(prediction[:, -1, :], dim=1)        # word_ids: (batch)
+            new_words = word_ids.view(word_ids.shape[0], 1)            # new_words: (batch, 1)
+            caption = torch.cat([caption, new_words], dim=1)            # caption: (batch, L)
+
+            # append words
+            for i, sentence in enumerate(sentences):
+                sentence.append(itos[word_ids.cpu().numpy()[i]])
+
+        # Generar frases
+        for sentence in sentences:
+            sentence = " ".join(sentence)
+
+        return sentences
+
+    def save(self):
+        dump = {'state_dict': self.state_dict(),
+                'embed_size': self.embed_size,
+                'vocab_size': self.vocab_size}
+        torch.save(dump, './weights/cnn_cnn_ce_{}_{}.dat'.format(self.vocab_size, self.embed_size))
+
+    def load(self):
+        file = './weights/cnn_cnn_ce_{}_{}.dat'.format(self.vocab_size, self.embed_size)
+        if os.path.exists(file):
+            dump = torch.load(file)
+            self.load_state_dict(dump['state_dict'])
+            self.vocab_size = dump['vocab_size']
+            self.embed_size = dump['embed_size']
+            print('Modelo cargado correctamente')
+
+class CNN_CNN_HA_CE(nn.Module):
+    """CNN_CNN con modulo de atencion jerarquico y un embedding propio"""
+    def __init__(self, vocab_size, embed_size, n_layers=6, max_length=15, train_cnn=False):
+        super(CNN_CNN_HA_CE, self).__init__()
+
+        self.vocab_size = vocab_size
+        self.embed_size = embed_size
+
+        ## Parametros
+        # k: tamaño del kernel
+        self.k = 3
+        # Longitud maxima de las frases generadas
+        self.max_length = max_length
+
+        # Custom embedding
+        self.embedding = nn.Embedding(vocab_size, embed_size, padding_idx=-1)
+
+        # Modulo de vision
+        self.vision_module = VisionModule()
+        # Fijar los pesos de la red convolucional para las imagenes
+        if not train_cnn:
+            for param in self.vision_module.parameters():
+                param.requires_grad = False
+
+        # Modulo de lenguaje-atencion
+        self.language_module_att = HierarchicalAttentionModule()
+
+        # Modulo de prediccion
+        self.prediction_module = PredictionModule(512, 300, self.vocab_size)
+
+    def forward(self, img, caption):
+        # caption: (batch, L)
+        caption = self.embedding(caption).transpose(1, 2)   # caption: (batch, embed_size, L)
+        v = self.vision_module(img)
+        c, a = self.language_module_att(caption, v)
+        P = self.prediction_module(a, c)
+        return P
+
+    def sample(self, img, stoi, itos):
+        # Crear un caption solo con el start
+        # En caso de usar GloVe, como no tiene una palabra para indicar el inicio de la frase, se
+        # escoge la palabra con menos frecuencia, que a su vez sera la mas alejada del centro y por
+        # tanto se podra destinguir facilmente con el resto de palabras
+        start_word = '<s>'
+        caption = torch.tensor([stoi[start_word]]).to('cuda' if use_cuda else 'cpu')
+        caption = caption.reshape((1, 1))
+        caption = caption.repeat(img.shape[0], 1)
+
+        sentences = [list() for _ in range(caption.shape[0])]
+
+        # Generar palabras hasta obtener </S> o llegar a la longitud maxima
+        for _ in range(self.max_length):
+            log_prediction = self.forward(img, caption)                 # prediction:       (batch, L)
+            prediction = torch.exp(log_prediction)
+            _, word_ids = torch.max(prediction[:, -1, :], dim=1)        # word_ids: (batch)
+            new_words = word_ids.view(word_ids.shape[0], 1)            # new_words: (batch, 1)
+            caption = torch.cat([caption, new_words], dim=1)            # caption: (batch, L)
+
+            # append words
+            for i, sentence in enumerate(sentences):
+                sentence.append(itos[word_ids.cpu().numpy()[i]])
+
+        # Generar frases
+        for sentence in sentences:
+            sentence = " ".join(sentence)
+
+        return sentences
+
+    def save(self):
+        dump = {'state_dict': self.state_dict(),
+                'embed_size': self.embed_size,
+                'vocab_size': self.vocab_size}
+        torch.save(dump, './weights/cnn_cnn_ha_ce_{}_{}.dat'.format(self.vocab_size, self.embed_size))
+
+    def load(self):
+        file = './weights/cnn_cnn_ha_ce_{}_{}.dat'.format(self.vocab_size, self.embed_size)
+        if os.path.exists(file):
+            dump = torch.load(file)
+            self.load_state_dict(dump['state_dict'])
+            self.vocab_size = dump['vocab_size']
+            self.embed_size = dump['embed_size']
             print('Modelo cargado correctamente')
