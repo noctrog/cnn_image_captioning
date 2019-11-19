@@ -16,10 +16,15 @@ provided by the authors.
 Edit the makefile and change image and caption folders to your dataset path. Also you can specify
 different learning rates and batch size.
 
-To train the model, run 
+To train the simple model, run 
 ```bash
 	make train_cnn_cnn_ce
 ```
+To train the hierarchical attention model, run
+```bash
+	make train_cnn_cnn_ha_ce
+```
+Model weights will be saved to weigths/cnn_cnn_<ha>_ce_<vocab_size>_<embedding_dim>_<language_layers>.dat
 
 TODO: 
 inference script
@@ -28,7 +33,6 @@ inference script
 
  * [Pytorch (> 1.1)](https://github.com/pytorch/pytorch): deep learning framework
  * [Torchvision > 0.3](https://github.com/pytorch/vision/tree/master/torchvision)
- * [TensorboardX](https://github.com/lanpa/tensorboardX): visualization of loss graphs.
  * [pyspellchecker](https://pypi.org/project/pyspellchecker/): to correct the spelling of words in
      captions, used to generate a dictionary with good words.
  * Matplotlib
