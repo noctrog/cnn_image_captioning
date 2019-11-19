@@ -525,6 +525,7 @@ class CNN_CNN_CE(nn.Module):
 
         self.vocab_size = vocab_size
         self.embed_size = embed_size
+        self.n_layers = n_layers
 
         ## Parametros
         # k: tamaño del kernel
@@ -594,10 +595,10 @@ class CNN_CNN_CE(nn.Module):
         dump = {'state_dict': self.state_dict(),
                 'embed_size': self.embed_size,
                 'vocab_size': self.vocab_size}
-        torch.save(dump, './weights/cnn_cnn_ce_{}_{}.dat'.format(self.vocab_size, self.embed_size))
+        torch.save(dump, './weights/cnn_cnn_ce_{}_{}_{}.dat'.format(self.vocab_size, self.embed_size, self.n_layers))
 
     def load(self):
-        file = './weights/cnn_cnn_ce_{}_{}.dat'.format(self.vocab_size, self.embed_size)
+        file = './weights/cnn_cnn_ce_{}_{}_{}.dat'.format(self.vocab_size, self.embed_size, self.n_layers)
         if os.path.exists(file):
             dump = torch.load(file)
             self.load_state_dict(dump['state_dict'])
@@ -612,6 +613,7 @@ class CNN_CNN_HA_CE(nn.Module):
 
         self.vocab_size = vocab_size
         self.embed_size = embed_size
+        self.n_layers = n_layers
 
         ## Parametros
         # k: tamaño del kernel
@@ -677,10 +679,10 @@ class CNN_CNN_HA_CE(nn.Module):
         dump = {'state_dict': self.state_dict(),
                 'embed_size': self.embed_size,
                 'vocab_size': self.vocab_size}
-        torch.save(dump, './weights/cnn_cnn_ha_ce_{}_{}.dat'.format(self.vocab_size, self.embed_size))
+        torch.save(dump, './weights/cnn_cnn_ha_ce_{}_{}_{}.dat'.format(self.vocab_size, self.embed_size, self.n_layers))
 
     def load(self):
-        file = './weights/cnn_cnn_ha_ce_{}_{}.dat'.format(self.vocab_size, self.embed_size)
+        file = './weights/cnn_cnn_ha_ce_{}_{}_{}.dat'.format(self.vocab_size, self.embed_size, self.n_layers)
         if os.path.exists(file):
             dump = torch.load(file)
             self.load_state_dict(dump['state_dict'])

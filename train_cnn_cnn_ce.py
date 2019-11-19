@@ -86,7 +86,7 @@ def main(args):
     writer = SummaryWriter(comment='CNN_CNN_CE')
 
     # Crea los modelos a entrenar
-    cnn_cnn = model.CNN_CNN_CE(len(stoi), 300, train_cnn=True).to(device)
+    cnn_cnn = model.CNN_CNN_CE(len(stoi), 300, n_layers=args.n_layers, train_cnn=True).to(device)
 
     # Si existe una red preentrenada, cargarla
     cnn_cnn.load()
@@ -102,6 +102,14 @@ def main(args):
     # Funcion de perdida a usar: Entropia cruzada ya que los elementos a predecir (palabras)
     # son mutuamente exlusivos (solo se puede elegir una palabra)
     criterion = torch.nn.NLLLoss()
+
+    # Set de validacion
+    cap = datasets.CocoCaptions(root = args.val_image_folder,
+                             annFile = args.val_captions_file,
+                                transform = transforms.Compose([
+                                    transforms.Resize((224, 224)),
+                                    transforms.ToTensor(),
+                                    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229,0.224, 0.225])]))
 
     losses = []
     mean_losses = []
@@ -177,6 +185,7 @@ def main(args):
                     cnn_cnn.save()
 
     else:
+        # Calcular perdida en el set de validacion
         print('-------- Epoch: {}\t\tLoss: {} -----------'.format(e, np.mean(losses)))
 
 
@@ -184,6 +193,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--lr", type=float, default=0.002, help='Learning rate')
     parser.add_argument("--epochs", type=int, default=1, help="Numero de generaciones a entrenar")
+    parser.add_argument("--n_layers", type=int, default=6, help='Numero de capas del modulo de lenguaje')
     parser.add_argument("--batch_size", type=int, default=8, help="Tamaño del batch")
     parser.add_argument("--image_folder", type=str, help='Carpeta que contiene todas las imagenes')
     parser.add_argument("--val_image_folder", type=str, help='Carpeta que contiene todas las imagenes para validar el modelo')
