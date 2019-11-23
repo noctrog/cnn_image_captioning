@@ -8,8 +8,16 @@ provided by the authors.
 
 ## Samples
 
+### Simple model
+
 ![Sample 1](./media/sample1.png)
 ![Sample 2](./media/sample2.png)
+
+### Hierarchical attention model
+
+![Sample 1](./media/Figure_6.png)
+![Sample 2](./media/Figure_5.png)
+![Sample 3](./media/Figure_2.png)
 
 ## Instructions
 
