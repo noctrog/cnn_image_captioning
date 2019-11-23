@@ -14,6 +14,8 @@ import torch.nn.functional as F
 from torch.utils.tensorboard import SummaryWriter
 from torchvision import datasets, transforms
 
+from nltk.translate.bleu_score import sentence_bleu
+
 import model
 
 # Usar CUDA si esta disponible
@@ -69,6 +71,8 @@ def get_dicts():
     dicts = torch.load('./weights/dicts')
     return dicts['stoi'], dicts['itos']
 
+def validation_losses():
+
 
 ## ------------------------------------------------------------
 ## ------------------------------------------------------------
@@ -113,6 +117,7 @@ def main(args):
     losses = []
     mean_losses = []
     current_batch = 0
+    score_ant = 0
     for e in range(args.epochs):
         # Crear un generador
         trainloader = dataloader(args.image_folder, args.captions_file, args.batch_size, stoi)
@@ -121,7 +126,7 @@ def main(args):
         for batch, (images, captions) in enumerate(trainloader):
             current_batch += 1
 
-            # Pasa las imanes a la tarjeta grafica en caso de que haya una
+            # Pasa las imagenes a la tarjeta grafica en caso de que haya una
             images_v = images.to(device)
 
             # Crear embeddings para entrenar. Entradas al modelo
@@ -176,13 +181,23 @@ def main(args):
                 print('Epoch: {}\tBatch: {}\t\tTraining loss: {}'.format(e, batch, mean_batch_loss))
 
         else:
-            # TODO: Calcular perdida en el set de validacion
+            for i in range(batch_size):
+                # Obtener una imagen con sus captions y cargarla en la tarjeta si hay una
+                img, target = cap[batch*batch_size+i]
+                img.to(device)
+                # Obtener el valor de precisión de la frase predicha utilizando BLEU
+                score = sentence_bleu(target, cnn_cnn.sample(img), weights=(0.25, 0.25, 0.25, 0.25))
 
-            mean_losses.append(np.mean(epoch_losses))
-            if (min(mean_losses) == mean_losses[-1]):
-                cnn_cnn.save()
-                print('Modelo guardado')
-            print('-------- Epoch: {}\t\tLoss: {} -----------'.format(e, np.mean(epoch_losses)))
+                # Cuando la red empieza a estar sobre entrenada se para el entrenamiento
+                if(score > score_ant):
+                    score_ant = score
+                else:
+                    print("Modelo guardado!")
+                    cnn_cnn.save()
+                    exit()
+
+
+
 
 
 if __name__ == "__main__":
