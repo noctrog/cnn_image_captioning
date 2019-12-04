@@ -276,7 +276,6 @@ class AttentionModule(nn.Module):
         self.Dc = image_vectors
         self.U = torch.nn.Parameter(data=torch.Tensor(self.De, self.Dc), requires_grad=True)
 
-        # TODO: 1 o 2??
         self.softmax = nn.Softmax(dim=2)
 
     def forward(self, c, v):
