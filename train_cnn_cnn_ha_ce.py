@@ -21,10 +21,7 @@ import model
 # Usar CUDA si esta disponible
 device = torch.device('cuda' if torch.cuda.is_available else 'cpu')
 
-## ------------------------------------------------------------
-## ------------------------------------------------------------
 ## -------------- Leer los datos y procesarlos ----------------
-
 # Las imagenes tienen que ir de 0 a 1, con un tamanio de 224x224
 # despues normalizadas con normalize =
 # transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229,
@@ -45,8 +42,8 @@ def dataloader(image_folder, captions_file, batch_size, stoi):
 
     #Cargar el dataset
     cap = datasets.CocoCaptions(root = image_folder,
-                             annFile = captions_file,
-                             transform = transform)
+                                annFile = captions_file,
+                                transform = transform)
 
     for batch in range(int( len(cap)/batch_size )):
     # for batch in range(15):
@@ -71,12 +68,7 @@ def get_dicts():
     dicts = torch.load('./weights/dicts')
     return dicts['stoi'], dicts['itos']
 
-def validation_losses():
-
-
-## ------------------------------------------------------------
-## ------------------------------------------------------------
-## -------------- Bucle de entrenamiento ----------------------
+# def validation_losses():
 
 def main(args):
 
@@ -108,16 +100,20 @@ def main(args):
 
     # Set de validacion
     cap = datasets.CocoCaptions(root = args.val_image_folder,
-                             annFile = args.val_captions_file,
+                                annFile = args.val_captions_file,
                                 transform = transforms.Compose([
                                     transforms.Resize((224, 224)),
                                     transforms.ToTensor(),
                                     transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229,0.224, 0.225])]))
 
-    losses = []
-    mean_losses = []
+    ## ------------------------------------------------------------
+    ## ------------------------------------------------------------
+    ## -------------- Bucle de entrenamiento ----------------------
     current_batch = 0
-    score_ant = 0
+    score_bleu_1 = []
+    score_bleu_2 = []
+    score_bleu_3 = []
+    score_bleu_4 = []
     for e in range(args.epochs):
         # Crear un generador
         trainloader = dataloader(args.image_folder, args.captions_file, args.batch_size, stoi)
@@ -165,14 +161,18 @@ def main(args):
 
             # Actualizar los pesos
             loss.backward()
-            # torch.nn.utils.clip_grad_norm_(cnn_cnn.parameters(), 1.0)
+
+            # Clip gradients
+            torch.nn.utils.clip_grad_norm_(cnn_cnn.parameters(), 1.0)
+
+            # Paso del optimizador
             optimizer.step()
 
             epoch_losses.append(loss.item())
 
             # Informar sobre el estado del entrenamiento, cada 100 batches
             if batch % 500 == 0 and batch != 0:
-            # if i % 100 == 0 and i != 0:
+                # if i % 100 == 0 and i != 0:
                 # Actualizar tensorboard
                 mean_batch_loss = np.mean(epoch_losses[-500:])
                 writer.add_scalar('Training loss', mean_batch_loss, current_batch)
@@ -181,24 +181,42 @@ def main(args):
                 print('Epoch: {}\tBatch: {}\t\tTraining loss: {}'.format(e, batch, mean_batch_loss))
 
         else:
-            for i in range(batch_size):
+            print('--- Calculating BLEU score for epoch {}'.format(e))
+            spell = SpellChecker(distance=1)
+            score_bleu_1_epoch = 0
+            score_bleu_2_epoch = 0
+            score_bleu_3_epoch = 0
+            score_bleu_4_epoch = 0
+            for i in range(len(cap)):
+            # for i in range(20):
                 # Obtener una imagen con sus captions y cargarla en la tarjeta si hay una
-                img, target = cap[batch*batch_size+i]
-                img.to(device)
+                img, target = cap[i]
+                img = img.to(device).view(1, *img.shape)
                 # Obtener el valor de precisión de la frase predicha utilizando BLEU
-                score = sentence_bleu(target, cnn_cnn.sample(img), weights=(0.25, 0.25, 0.25, 0.25))
+                sentence = cnn_cnn.sample(img, stoi, itos)[0]
+                captions = [[word if word in stoi else spell.correction(word) for word in re.findall(r"[\w']+|[.,!?;]", target[i].lower())] for i in range(len(target))]
+                score_bleu_1_epoch += sentence_bleu(captions, sentence, weights=(1.0, 0.0, 0.0, 0.0))
+                score_bleu_2_epoch += sentence_bleu(captions, sentence, weights=(0.5, 0.5, 0.0, 0.0))
+                score_bleu_3_epoch += sentence_bleu(captions, sentence, weights=(0.333, 0.333, 0.333, 0.0))
+                score_bleu_4_epoch += sentence_bleu(captions, sentence, weights=(0.25, 0.25, 0.25, 0.25))
 
-                # Cuando la red empieza a estar sobre entrenada se para el entrenamiento
-                if(score > score_ant):
-                    score_ant = score
-                else:
-                    print("Modelo guardado!")
-                    cnn_cnn.save()
-                    exit()
+            score_bleu_1.append(score_bleu_1_epoch / len(cap))
+            score_bleu_2.append(score_bleu_2_epoch / len(cap))
+            score_bleu_2.append(score_bleu_3_epoch / len(cap))
+            score_bleu_2.append(score_bleu_4_epoch / len(cap))
+            # score_history.append(score / 20)
 
+            if (score == max(score_history)):
+                print("Model saved!")
+                cnn_cnn.save()
 
+            writer.add_scalar('BLEU-1', score_bleu_1[-1], e)
+            writer.add_scalar('BLEU-2', score_bleu_2[-1], e)
+            writer.add_scalar('BLEU-3', score_bleu_3[-1], e)
+            writer.add_scalar('BLEU-4', score_bleu_4[-1], e)
+            writer.add_scalar('Epoch loss', np.mean(epoch_losses), e)
 
-
+            print('--- BLEU score: {}'.format(score_history[-1]))
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
