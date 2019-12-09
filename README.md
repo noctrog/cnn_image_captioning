@@ -8,18 +8,20 @@ provided by the authors.
 
 ## Samples
 
-### Simple model
+![Samples](./media/predictions.png)
 
-![Sample 1](./media/sample1.png)
-![Sample 2](./media/sample2.png)
+<!--### Simple model-->
 
-### Hierarchical attention model
+<!--![Sample 1](./media/sample1.png)-->
+<!--![Sample 2](./media/sample2.png)-->
 
-![Sample 1](./media/Figure_6.png)
-![Sample 2](./media/Figure_5.png)
-![Sample 3](./media/Figure_2.png)
+<!--### Hierarchical attention model-->
 
-## Instructions
+<!--![Sample 1](./media/Figure_6.png)-->
+<!--![Sample 2](./media/Figure_5.png)-->
+<!--![Sample 3](./media/Figure_2.png)-->
+
+<!--## Instructions-->
 
 Edit the makefile and change image and caption folders to your dataset path. Also you can specify
 different learning rates and batch size.
