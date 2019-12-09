@@ -51,5 +51,5 @@ inference script
 
 ## Motivation
 
-This project was done as the final project of the subject Computer Vision at the Robotics
+This project was done as the final project for the subject of Computer Vision at the Robotics
 Engineering degree at Alicante's University.
