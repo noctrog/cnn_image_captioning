@@ -202,11 +202,11 @@ def main(args):
 
             score_bleu_1.append(score_bleu_1_epoch / len(cap))
             score_bleu_2.append(score_bleu_2_epoch / len(cap))
-            score_bleu_2.append(score_bleu_3_epoch / len(cap))
-            score_bleu_2.append(score_bleu_4_epoch / len(cap))
+            score_bleu_3.append(score_bleu_3_epoch / len(cap))
+            score_bleu_4.append(score_bleu_4_epoch / len(cap))
             # score_history.append(score / 20)
 
-            if (score == max(score_history)):
+            if (score_bleu_4[-1] == max(score_bleu_4)):
                 print("Model saved!")
                 cnn_cnn.save()
 
@@ -216,7 +216,7 @@ def main(args):
             writer.add_scalar('BLEU-4', score_bleu_4[-1], e)
             writer.add_scalar('Epoch loss', np.mean(epoch_losses), e)
 
-            print('--- BLEU score: {}'.format(score_history[-1]))
+            print('--- BLEU-4 score: {}'.format(score_bleu_4[-1]))
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
