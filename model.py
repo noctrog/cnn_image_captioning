@@ -669,8 +669,11 @@ class CNN_CNN_HA_CE(nn.Module):
                 sentence.append(itos[word_ids.cpu().numpy()[i]])
 
         # Generar frases
-        for sentence in sentences:
+        for i, sentence in enumerate(sentences):
+            if '</s>' in sentence:
+                sentence = sentence[:sentence.index('</s>')]
             sentence = " ".join(sentence)
+            sentences[i] = sentence
 
         return sentences
 
