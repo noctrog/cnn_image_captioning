@@ -7,8 +7,6 @@ from torch.nn.utils.rnn import pack_padded_sequence
 import torch.nn.functional as F
 
 from torchvision import models
-# from torchtext import vocab
-from mini_glove import MiniGlove
 
 # Comprueba que haya una GPU compatible con CUDA
 use_cuda = torch.cuda.is_available()
