@@ -19,12 +19,5 @@ train_cnn_cnn_ha_ce:
 				--val_image_folder $(TEST_IMAGE_FOLDER) --val_captions_file $(TEST_ANNOTATION_FILE) \
 				--batch_size $(BATCH_SIZE) --lr $(LEARNING_RATE) --epochs $(EPOCHS) --n_layers $(N_LAYERS)
 
-generate_mini_glove:
-	python recortar_glove.py --file $(TRAIN_ANNOTATION_FILE)
-
-inference:
-	python inference.py --images $(TEST_IMAGE_FOLDER) --captions $(TEST_ANNOTATION_FILE)
-	#python inference.py --images $(TRAIN_IMAGE_FOLDER) --captions $(TRAIN_ANNOTATION_FILE)
-
 dicts:
 	python gen_dicts.py --file $(TRAIN_ANNOTATION_FILE)
