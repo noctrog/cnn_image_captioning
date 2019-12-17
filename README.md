@@ -1,4 +1,4 @@
-# (WIP) CNN-CNN Image captioning
+# CNN-CNN Image captioning
 
 Image captioning done entirely with CNNs, implemented in Pytorch and based on the paper [CNN+CNN: Convolutional Decoders for Image Captioning](https://arxiv.org/abs/1805.09019),
 written by Qingzhong Wang and Antoni B. Chan.
