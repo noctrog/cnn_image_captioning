@@ -36,8 +36,13 @@ To train the hierarchical attention model, run
 ```
 Model weights will be saved to weigths/cnn_cnn_<ha>_ce_<vocab_size>_<embedding_dim>_<language_layers>.dat
 
-TODO: 
-inference script
+## Inference
+
+Using the inference.py script, you can feed the model any picture you want
+
+```bash
+	python inference.py -i <path_to_picture>
+```
 
 ## Dependencies
 
